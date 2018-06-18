@@ -1,0 +1,117 @@
+----SET @sql='BACKUP DATABASE ' + @dbname +  ' TO DISK=''' + @backup_root + @dbname + '.bak'', DISK=''' + @backup_root2 + @dbname + '.bak'' WITH PASSWORD=''g2rch.cn'', FORMAT, INIT'
+--
+--
+--/*  --1--
+--     Full Backup Databases
+--- Backup option: with stats=10, FORMAT, INIT, PASSWORD=''g2rch.cn''
+--- Everyday 1:30am
+--- Backup to: U:\bebaj\hisbak
+--TO DISK = N'd:/1.bak',DISK = N'd:/2.bak',DISK = N'd:/3.bak',DISK = N'd:/4.bak'
+--
+--CASE (CONVERT(int, getdate(),105) % 2) 
+--  WHEN 0
+--	backup to F:\dbbackup\0  ELSE
+--    backup to U:\dbbackup\1\ and T:\dbbackup\1--1-- */
+--
+--DECLARE @dbname VARCHAR(50)
+--DECLARE @backup_root VARCHAR(255)
+--DECLARE @backup_root2 VARCHAR(255)
+--DECLARE @sql VARCHAR(2000)
+--DECLARE @start_time datetime
+--DECLARE @isZero int
+--DECLARE @cost int
+--
+--
+--set @isZero = (CONVERT(int, getdate(),105) % 2)
+--print @isZero
+--
+--
+--IF @isZero  = 0
+--    BEGIN
+--        SET @backup_root='F:\dbbackup\0\'
+--        DECLARE cursor_database CURSOR
+--            FOR SELECT [name] FROM sys.databases WHERE database_id<>2
+--    END
+--ELSE
+--    BEGIN
+--        SET @backup_root='U:\dbbackup\1\'
+--        SET @backup_root2='T:\dbbackup\1\'
+--        DECLARE cursor_database CURSOR
+--            FOR SELECT [name] FROM sys.databases WHERE database_id<>2
+--    END
+--
+--OPEN cursor_database
+--
+--SET @start_time=getdate()
+--print 'Begin: ' + convert(varchar, getdate(), 121)
+--
+--FETCH NEXT FROM cursor_database INTO @dbname
+--WHILE @@FETCH_STATUS=0
+--    BEGIN
+--        IF @isZero = 0
+--            SET @sql='BACKUP DATABASE ' + @dbname +  ' TO DISK=''' + @backup_root + @dbname + '.bak'' WITH PASSWORD=''g2rch.cn'', FORMAT, INIT'
+--        ELSE
+--            SET @sql='BACKUP DATABASE ' + @dbname +  ' TO DISK=''' + @backup_root + @dbname + '_part1.bak'', DISK=''' + @backup_root2 + @dbname + '_part2.bak'' WITH PASSWORD=''g2rch.cn'', FORMAT, INIT'
+--
+--        print ' Backup database: ' + @dbname
+--        print ' >start @' + convert(varchar, getdate(), 121)
+--        print ' >>' + @sql
+--        EXECUTE (@sql)
+--        print ' >finish @' + convert(varchar, getdate(), 121)
+--        print '==========================================='
+--        FETCH NEXT FROM cursor_database INTO @dbname
+--     END
+--
+--CLOSE cursor_database
+--DEALLOCATE cursor_database
+--
+--print 'End: ' + convert(varchar, getdate(), 121)
+--
+--set @cost=datediff(second, @start_time, getdate()) 
+--select @cost as '备份操作耗时(秒)'
+--RAISERROR ('数据库全备完成，共运行了 %d 毫秒。(%d)', 1, 1, @cost, @isZero)
+--select * from InformationCenter.dbo.dblist
+
+DECLARE @dbname VARCHAR(50)
+DECLARE @BackupFlag CHAR(10)
+DECLARE @backup_root VARCHAR(255)
+DECLARE @backup_root2 VARCHAR(255)
+DECLARE @sql VARCHAR(2000)
+DECLARE @start_time datetime
+DECLARE @isZero char(1)
+DECLARE @cost int
+
+set @isZero = 0 -- (CONVERT(char(1), getdate(),105) % 2)
+-- SELECT @isZero AS 日期能否被2整除, '''0''能被2整除；''1''不能被2整除' AS 说明
+
+DECLARE cursor_database 
+		CURSOR  FOR 
+				SELECT [name], [BackupFlag], [BackupPath0], [BackupPath1] 
+				FROM InformationCenter.dbo.dblist
+				WHERE database_id<>2  -- 不备份临时库 tempdb
+
+SET @start_time=getdate()
+print 'Begin: ' + convert(varchar, getdate(), 121)
+
+OPEN cursor_database
+FETCH NEXT FROM cursor_database INTO @dbname, @BackupFlag, @backup_root, @backup_root2
+WHILE @@FETCH_STATUS=0
+    BEGIN
+		SET @sql='BACKUP DATABASE ' + @dbname +  ' TO DISK=''' + @backup_root + 'dbbackup\' + @isZero + '\' + @dbname + '.bak'' WITH PASSWORD=''g2rch.cn'', FORMAT, INIT'
+        print ' Backup database: ' + @dbname
+        print ' >start @' + convert(varchar, getdate(), 121)
+        print ' >>' + @sql
+        EXECUTE (@sql)
+        print ' >finish @' + convert(varchar, getdate(), 121)
+        print '==========================================='
+        FETCH NEXT FROM cursor_database INTO @dbname, @BackupFlag, @backup_root, @backup_root2
+     END
+
+CLOSE cursor_database
+DEALLOCATE cursor_database
+
+print 'End: ' + convert(varchar, getdate(), 121)
+
+set @cost=datediff(second, @start_time, getdate()) 
+select @cost as '备份操作耗时(秒)'
+RAISERROR ('数据库全备完成，共运行了 %d 秒。(%s)', 1, 1, @cost, @isZero)
